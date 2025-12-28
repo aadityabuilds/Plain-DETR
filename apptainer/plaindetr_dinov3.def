@@ -40,6 +40,7 @@ From: pytorch/pytorch:2.5.1-cuda12.1-cudnn9-devel
         opencv-python-headless \
         matplotlib \
         pyyaml \
+        torchmetrics \
         einops
 
 %files
