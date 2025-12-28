@@ -32,6 +32,7 @@ From: pytorch/pytorch:2.5.1-cuda12.1-cudnn9-devel
     conda clean -afy
 
     python -m pip install \
+        "numpy<2" \
         tqdm \
         scipy \
         wandb \
@@ -40,6 +41,7 @@ From: pytorch/pytorch:2.5.1-cuda12.1-cudnn9-devel
         opencv-python-headless \
         matplotlib \
         pyyaml \
+        termcolor \
         torchmetrics \
         einops
 
