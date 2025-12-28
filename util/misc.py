@@ -426,7 +426,11 @@ def init_distributed_mode(args):
         args.gpu = int(os.environ["LOCAL_RANK"])
         args.dist_url = "env://"
         os.environ["LOCAL_SIZE"] = str(torch.cuda.device_count())
-    elif "SLURM_PROCID" in os.environ:
+    elif (
+        "SLURM_PROCID" in os.environ
+        and "SLURM_NTASKS" in os.environ
+        and "SLURM_NODELIST" in os.environ
+    ):
         proc_id = int(os.environ["SLURM_PROCID"])
         ntasks = int(os.environ["SLURM_NTASKS"])
         node_list = os.environ["SLURM_NODELIST"]
