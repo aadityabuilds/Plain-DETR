@@ -15,6 +15,7 @@
 Backbone modules.
 """
 import math
+import os
 import torch
 import torch.nn.functional as F
 import torchvision
@@ -27,6 +28,7 @@ from util.misc import NestedTensor, is_main_process
 from .position_encoding import build_position_encoding
 from .swin_transformer_v2 import SwinTransformerV2
 from .utils import LayerNorm2D
+from .dinov3_backbone import build_dinov3_backbone
 
 
 class FrozenBatchNorm2d(torch.nn.Module):
@@ -310,11 +312,52 @@ class Joiner(nn.Sequential):
         return out, pos
 
 
+def _unwrap_state_dict(checkpoint):
+    if not isinstance(checkpoint, dict):
+        raise RuntimeError("Invalid checkpoint format")
+    for k in ["model", "state_dict", "teacher", "student", "backbone"]:
+        if k in checkpoint and isinstance(checkpoint[k], dict):
+            return checkpoint[k]
+    return checkpoint
+
+
+def _maybe_strip_prefix(state_dict, prefix):
+    if not state_dict:
+        return state_dict
+    keys = list(state_dict.keys())
+    if not all(k.startswith(prefix) for k in keys[: min(len(keys), 100)]):
+        return state_dict
+    return {k[len(prefix) :]: v for k, v in state_dict.items()}
+
+
+def _load_dinov3_backbone_model(args):
+    if args.dinov3_repo is None or args.dinov3_model is None:
+        raise ValueError("dinov3_repo and dinov3_model must be set when using a dinov3 backbone")
+
+    if not os.path.exists(args.dinov3_repo):
+        raise ValueError(f"dinov3_repo path does not exist: {args.dinov3_repo}")
+
+    backbone_model = torch.hub.load(args.dinov3_repo, args.dinov3_model, source="local", pretrained=False)
+
+    if args.dinov3_weights:
+        checkpoint = torch.load(args.dinov3_weights, map_location="cpu")
+        state_dict = _unwrap_state_dict(checkpoint)
+        for prefix in ["module.", "backbone.", "teacher.", "student.", "model."]:
+            state_dict = _maybe_strip_prefix(state_dict, prefix)
+        msg = backbone_model.load_state_dict(state_dict, strict=False)
+        print(msg)
+
+    return backbone_model
+
+
 def build_backbone(args):
     position_embedding = build_position_encoding(args)
     train_backbone = args.lr_backbone > 0
     return_interm_layers = args.masks or (args.num_feature_levels > 1)
 
+    if args.backbone.startswith("dinov3"):
+        backbone_model = _load_dinov3_backbone_model(args)
+        return build_dinov3_backbone(backbone_model, args)
     if "resnet" in args.backbone:
         backbone = Backbone(
             args.backbone, train_backbone, return_interm_layers, args.dilation,

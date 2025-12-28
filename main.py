@@ -103,6 +103,13 @@ def get_args_parser():
         type=str,
         help="Name of the convolutional backbone to use",
     )
+    parser.add_argument("--dinov3_repo", default=None, type=str)
+    parser.add_argument("--dinov3_model", default=None, type=str)
+    parser.add_argument("--dinov3_weights", default=None, type=str)
+    parser.add_argument("--layers_to_use", default=None, type=int, nargs="+")
+    parser.add_argument("--blocks_to_train", default=None, type=int, nargs="+")
+    parser.add_argument("--n_windows_sqrt", default=0, type=int)
+    parser.add_argument("--backbone_use_layernorm", action="store_true", default=False)
     parser.add_argument(
         "--dilation",
         action="store_true",
@@ -173,6 +180,13 @@ def get_args_parser():
         help="Number of attention heads inside the transformer's attentions",
     )
     parser.add_argument("--norm_type", default="pre_norm", type=str)
+    parser.add_argument("--add_transformer_encoder", action="store_true", default=True)
+    parser.add_argument(
+        "--no_add_transformer_encoder",
+        action="store_false",
+        dest="add_transformer_encoder",
+    )
+    parser.add_argument("--num_encoder_layers", default=6, type=int)
     parser.add_argument("--auto_resume", action="store_true", default=True)
     parser.add_argument("--not_auto_resume", action="store_false", dest="auto_resume")
     # * dev: proposals
@@ -241,6 +255,7 @@ def get_args_parser():
 
     # dataset parameters
     parser.add_argument("--dataset_file", default="coco")
+    parser.add_argument("--num_classes", default=None, type=int)
     parser.add_argument("--coco_path", default="./data/coco", type=str)
     parser.add_argument("--coco_panoptic_path", type=str)
     parser.add_argument("--remove_difficult", action="store_true")
