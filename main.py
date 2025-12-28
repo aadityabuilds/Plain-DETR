@@ -271,12 +271,24 @@ def get_args_parser():
         "--output_dir", default="", help="path where to save, empty for no saving"
     )
     parser.add_argument(
+        "--save_ckpt_every_images",
+        default=0,
+        type=int,
+        help="If > 0, overwrite checkpoint.pth every N training images (mid-epoch).",
+    )
+    parser.add_argument(
         "--device", default="cuda", help="device to use for training / testing"
     )
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--resume", default="", help="resume from checkpoint")
     parser.add_argument(
         "--start_epoch", default=0, type=int, metavar="N", help="start epoch"
+    )
+    parser.add_argument(
+        "--start_iter",
+        default=0,
+        type=int,
+        help="Start iteration within start_epoch (used when resuming mid-epoch).",
     )
     parser.add_argument("--num_workers", default=2, type=int)
     parser.add_argument(
@@ -459,7 +471,11 @@ def main(args):
                 "So the new lr schedule would override the resumed lr schedule."
             )
             lr_scheduler.step(lr_scheduler.last_epoch)
-            args.start_epoch = checkpoint["epoch"] + 1
+            if "iteration" in checkpoint and checkpoint["iteration"] is not None:
+                args.start_epoch = checkpoint["epoch"]
+                args.start_iter = int(checkpoint["iteration"]) + 1
+            else:
+                args.start_epoch = checkpoint["epoch"] + 1
 
             if args.use_fp16 and "scaler" in checkpoint:
                 scaler.load_state_dict(checkpoint["scaler"])
@@ -507,9 +523,26 @@ def main(args):
 
     print("Start training")
     start_time = time.time()
+
+    def _save_periodic_checkpoint(epoch, iteration):
+        if not args.output_dir:
+            return
+        save_dict = {
+            "model": model_without_ddp.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "lr_scheduler": lr_scheduler.state_dict(),
+            "epoch": epoch,
+            "iteration": iteration,
+            "args": args,
+        }
+        if args.use_fp16:
+            save_dict["scaler"] = scaler.state_dict()
+        utils.save_on_master(save_dict, output_dir / "checkpoint.pth")
+
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             sampler_train.set_epoch(epoch)
+        start_iter = args.start_iter if epoch == args.start_epoch else 0
         train_stats = train_one_epoch(
             model,
             criterion,
@@ -524,7 +557,12 @@ def main(args):
             use_wandb=args.use_wandb,
             use_fp16=args.use_fp16,
             scaler=scaler if args.use_fp16 else None,
+            save_ckpt_every_images=args.save_ckpt_every_images,
+            save_checkpoint=_save_periodic_checkpoint,
+            start_iter=start_iter,
         )
+        if epoch == args.start_epoch:
+            args.start_iter = 0
         if args.output_dir:
             checkpoint_paths = [output_dir / "checkpoint.pth"]
             # extra checkpoint before LR drop and every 5 epochs

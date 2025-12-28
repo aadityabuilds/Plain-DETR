@@ -76,6 +76,9 @@ def train_one_epoch(
     use_wandb: bool = False,
     use_fp16: bool = False,
     scaler: torch.cuda.amp.GradScaler = None,
+    save_ckpt_every_images: int = 0,
+    save_checkpoint=None,
+    start_iter: int = 0,
 ):
     model.train()
     criterion.train()
@@ -93,8 +96,20 @@ def train_one_epoch(
     prefetcher = data_prefetcher(data_loader, device, prefetch=True)
     samples, targets = prefetcher.next()
 
+    if start_iter and start_iter > 0:
+        start_iter = min(int(start_iter), len(data_loader))
+        for _ in range(start_iter):
+            samples, targets = prefetcher.next()
+
+    images_processed = 0
+    next_save = None
+    if save_ckpt_every_images and save_checkpoint is not None:
+        batch_sz = int(samples.tensors.shape[0])
+        images_processed = start_iter * batch_sz
+        next_save = ((images_processed // int(save_ckpt_every_images)) + 1) * int(save_ckpt_every_images)
+
     # for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
-    for idx in metric_logger.log_every(range(len(data_loader)), print_freq, header):
+    for idx in metric_logger.log_every(range(start_iter, len(data_loader)), print_freq, header):
         optimizer.zero_grad()
 
         with torch.cuda.amp.autocast(enabled=use_fp16):
@@ -154,6 +169,12 @@ def train_one_epoch(
         metric_logger.update(class_error=loss_dict_reduced["class_error"])
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
         metric_logger.update(grad_norm=grad_total_norm)
+
+        if next_save is not None:
+            images_processed += int(samples.tensors.shape[0])
+            if images_processed >= next_save:
+                save_checkpoint(epoch, idx)
+                next_save += int(save_ckpt_every_images)
 
         samples, targets = prefetcher.next()
         lr_scheduler.step()
