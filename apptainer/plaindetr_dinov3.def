@@ -46,10 +46,10 @@ From: pytorch/pytorch:2.5.1-cuda12.1-cudnn9-devel
 %runscript
     set -e
 
-    COCO_PATH=${COCO_PATH:-/data/coco}
-    DINOV3_REPO=${DINOV3_REPO:-/data/dinoV3}
-    DINOV3_WEIGHTS=${DINOV3_WEIGHTS:-/data/dino_weights.pth}
-    OUTPUT_DIR=${OUTPUT_DIR:-/data/output}
+    COCO_PATH=${COCO_PATH:-../coco}
+    DINOV3_REPO=${DINOV3_REPO:-../dinoV3}
+    DINOV3_WEIGHTS=${DINOV3_WEIGHTS:-../dino_weights.pth}
+    OUTPUT_DIR=${OUTPUT_DIR:-../output}
 
     BATCH_SIZE=${BATCH_SIZE:-1}
     NUM_WORKERS=${NUM_WORKERS:-4}
