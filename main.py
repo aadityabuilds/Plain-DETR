@@ -33,6 +33,13 @@ from torch import distributed as dist
 import wandb
 
 
+def _torch_load(path, map_location=None):
+    try:
+        return torch.load(path, map_location=map_location, weights_only=False)
+    except TypeError:
+        return torch.load(path, map_location=map_location)
+
+
 def get_args_parser():
     parser = argparse.ArgumentParser("Deformable DETR Detector", add_help=False)
     parser.add_argument("--lr", default=2e-4, type=float)
@@ -397,7 +404,7 @@ def main(args):
         base_ds = get_coco_api_from_dataset(dataset_val)
 
     if args.frozen_weights is not None:
-        checkpoint = torch.load(args.frozen_weights, map_location="cpu")
+        checkpoint = _torch_load(args.frozen_weights, map_location="cpu")
         model_without_ddp.detr.load_state_dict(checkpoint["model"])
 
     if args.use_wandb and dist.get_rank() == 0:
@@ -422,7 +429,7 @@ def main(args):
                 args.resume, map_location="cpu", check_hash=True
             )
         else:
-            checkpoint = torch.load(args.resume, map_location="cpu")
+            checkpoint = _torch_load(args.resume, map_location="cpu")
         missing_keys, unexpected_keys = model_without_ddp.load_state_dict(
             checkpoint["model"], strict=False
         )
