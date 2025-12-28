@@ -302,6 +302,12 @@ def get_args_parser():
     parser.add_argument("--eval", action="store_true")
     # topk for eval
     parser.add_argument("--topk", default=100, type=int)
+    parser.add_argument(
+        "--eval_max_batches",
+        default=0,
+        type=int,
+        help="If > 0, evaluate only on the first N validation batches (fast sanity-check).",
+    )
 
     # * training technologies
     parser.add_argument("--use_fp16", default=False, action="store_true")
@@ -492,6 +498,7 @@ def main(args):
                 step=args.start_epoch * len(data_loader_train),
                 use_wandb=args.use_wandb,
                 reparam=args.reparam,
+                max_batches=args.eval_max_batches,
             )
 
     if args.eval:
@@ -506,6 +513,7 @@ def main(args):
             step=args.start_epoch * len(data_loader_train),
             use_wandb=args.use_wandb,
             reparam=args.reparam,
+            max_batches=args.eval_max_batches,
         )
         if args.output_dir:
             utils.save_on_master(
@@ -593,6 +601,7 @@ def main(args):
             step=(epoch + 1) * len(data_loader_train),
             use_wandb=args.use_wandb,
             reparam=args.reparam,
+            max_batches=args.eval_max_batches,
         )
 
         log_stats = {

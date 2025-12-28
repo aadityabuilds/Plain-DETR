@@ -206,6 +206,7 @@ def evaluate(
     step,
     use_wandb=False,
     reparam=False,
+    max_batches: int = 0,
 ):
     # (hack) disable the one-to-many branch queries
     # save them frist
@@ -236,7 +237,7 @@ def evaluate(
             output_dir=os.path.join(output_dir, "panoptic_eval"),
         )
 
-    for samples, targets in metric_logger.log_every(data_loader, 10, header):
+    for batch_idx, (samples, targets) in enumerate(metric_logger.log_every(data_loader, 10, header)):
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -286,6 +287,9 @@ def evaluate(
                 res_pano[i]["file_name"] = file_name
 
             panoptic_evaluator.update(res_pano)
+
+        if max_batches and (batch_idx + 1) >= int(max_batches):
+            break
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
