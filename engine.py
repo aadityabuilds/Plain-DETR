@@ -32,6 +32,12 @@ from torch import distributed as dist
 def train_hybrid(outputs, targets, k_one2many, criterion, lambda_one2many):
     # one-to-one-loss
     loss_dict = criterion(outputs, targets)
+    if (
+        ("pred_logits_one2many" not in outputs)
+        or (outputs["pred_logits_one2many"].shape[1] == 0)
+        or (k_one2many <= 0)
+    ):
+        return loss_dict
     multi_targets = copy.deepcopy(targets)
     # repeat the targets
     for target in multi_targets:
@@ -94,7 +100,11 @@ def train_one_epoch(
         with torch.cuda.amp.autocast(enabled=use_fp16):
             outputs = model(samples)
 
-            if k_one2many > 0:
+            if (
+                (k_one2many > 0)
+                and ("pred_logits_one2many" in outputs)
+                and (outputs["pred_logits_one2many"].shape[1] > 0)
+            ):
                 loss_dict = train_hybrid(
                     outputs, targets, k_one2many, criterion, lambda_one2many
                 )
@@ -178,10 +188,11 @@ def evaluate(
 ):
     # (hack) disable the one-to-many branch queries
     # save them frist
-    save_num_queries = model.module.num_queries
-    save_two_stage_num_proposals = model.module.transformer.two_stage_num_proposals
-    model.module.num_queries = model.module.num_queries_one2one
-    model.module.transformer.two_stage_num_proposals = model.module.num_queries
+    model_for_hack = model.module if hasattr(model, "module") else model
+    save_num_queries = model_for_hack.num_queries
+    save_two_stage_num_proposals = model_for_hack.transformer.two_stage_num_proposals
+    model_for_hack.num_queries = model_for_hack.num_queries_one2one
+    model_for_hack.transformer.two_stage_num_proposals = model_for_hack.num_queries
 
     model.eval()
     criterion.eval()
@@ -295,6 +306,6 @@ def evaluate(
         wandb.log(data=log_data, step=step)
 
     # recover the model parameters for next training epoch
-    model.module.num_queries = save_num_queries
-    model.module.transformer.two_stage_num_proposals = save_two_stage_num_proposals
+    model_for_hack.num_queries = save_num_queries
+    model_for_hack.transformer.two_stage_num_proposals = save_two_stage_num_proposals
     return stats, coco_evaluator
